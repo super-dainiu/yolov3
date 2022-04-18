@@ -1,0 +1,5 @@
+PASCAL_VOC/*
+my_checkpoint.pth.tar
+.idea
+__pycache__
+runs
