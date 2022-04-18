@@ -1,5 +1,5 @@
-PASCAL_VOC/*
+PASCAL_VOC/images
 my_checkpoint.pth.tar
 .idea
 __pycache__
-runs
+conda
