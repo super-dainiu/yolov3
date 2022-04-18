@@ -1,1 +1,1 @@
-# yolov3 (Not trained yet)
+# yolov3 (not trained yet)
