@@ -5,8 +5,6 @@ from torch.utils.tensorboard import SummaryWriter
 
 from model import YOLOv3
 from utils import (
-    mean_average_precision,
-    get_evaluation_bboxes,
     train_iter,
     test_iter,
 )
@@ -55,10 +53,9 @@ def main():
         if config.SAVE_MODEL:
             save_checkpoint(model, optimizer)
 
-        if epoch % 5 == 0 and config.SAVE_MODEL:
+        if (epoch + 1) % 5 == 0 and config.SAVE_MODEL:
             img0 = cv_imread(config.EXAMPLE)
             detector = Detector(weights=config.CHECKPOINT_FILE,
-                                return_img=True,
                                 conf_thres=0.8,
                                 iou_thres=0.2,
                                 view_time=True,
@@ -67,24 +64,6 @@ def main():
             writer.add_image("results", img0.transpose(2, 0, 1), epoch)
 
         model.train()
-
-    pred_boxes, true_boxes = get_evaluation_bboxes(
-        test_loader,
-        model,
-        iou_threshold=0.3,
-        anchors=config.ANCHORS,
-        threshold=0.7,
-    )
-    mapval = mean_average_precision(
-        pred_boxes,
-        true_boxes,
-        iou_threshold=config.MAP_IOU_THRESH,
-        box_format="midpoint",
-        num_classes=config.NUM_CLASSES,
-    )
-    writer.add_scalars('map', {'map': mapval,
-                               }, 0
-                       )
 
 
 if __name__ == "__main__":

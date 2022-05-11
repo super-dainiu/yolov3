@@ -1,6 +1,7 @@
 import config
 import torch
 import os
+import pprint
 
 from collections import Counter
 from tqdm import tqdm
@@ -79,12 +80,39 @@ def non_max_suppression(bboxes, iou_threshold, threshold, box_format="midpoint",
     return bboxes_after_nms
 
 
+def cells_to_bboxes(predictions, anchors, S, is_preds=True):
+    BATCH_SIZE = predictions.shape[0]
+    num_anchors = len(anchors)
+    box_predictions = predictions[..., 1:5]
+    if is_preds:
+        anchors = anchors.reshape(1, len(anchors), 1, 1, 2)
+        box_predictions[..., 0:2] = torch.sigmoid(box_predictions[..., 0:2])
+        box_predictions[..., 2:] = torch.exp(box_predictions[..., 2:]) * anchors
+        scores = torch.sigmoid(predictions[..., 0:1])
+        best_class = torch.argmax(predictions[..., 5:], dim=-1).unsqueeze(-1)
+    else:
+        scores = predictions[..., 0:1]
+        best_class = predictions[..., 5:6]
+
+    cell_indices = (
+        torch.arange(S)
+        .repeat(predictions.shape[0], 3, S, 1)
+        .unsqueeze(-1)
+        .to(predictions.device)
+    )
+    x = 1 / S * (box_predictions[..., 0:1] + cell_indices)
+    y = 1 / S * (box_predictions[..., 1:2] + cell_indices.permute(0, 1, 3, 2, 4))
+    w_h = 1 / S * box_predictions[..., 2:4]
+    converted_bboxes = torch.cat((best_class, scores, x, y, w_h), dim=-1).reshape(BATCH_SIZE, num_anchors * S * S, 6)
+    return converted_bboxes.tolist()
+
+
 def mean_average_precision(
     pred_boxes, true_boxes, iou_threshold=0.5, box_format="midpoint", num_classes=20
 ):
 
     # list storing all AP for respective classes
-    average_precisions = []
+    average_precisions = {class_name: 0 for class_name in config.PASCAL_CLASSES}
 
     # used for numerical stability later on
     epsilon = 1e-6
@@ -168,30 +196,44 @@ def mean_average_precision(
         precisions = torch.cat((torch.tensor([1]), precisions))
         recalls = torch.cat((torch.tensor([0]), recalls))
         # torch.trapz for numerical integration
-        average_precisions.append(torch.trapz(precisions, recalls))
+        average_precisions[config.PASCAL_CLASSES[c]] = torch.trapz(precisions, recalls).item()
 
-    return sum(average_precisions) / len(average_precisions)
+    pprint.pprint(average_precisions)
+    return sum(average_precisions.values()) / len(average_precisions)
 
 
-def get_evaluation_bboxes(loader, model, iou_threshold, anchors, threshold, box_format="midpoint", device="cuda"):
-    # make sure model is in eval before get bboxes
-    model.eval()
-    train_idx = 0
-    all_pred_boxes = []
-    all_true_boxes = []
-    for batch_idx, (x, labels) in enumerate(tqdm(loader)):
-        x = x.to(device)
+def check_accuracy(out, labels, threshold,
+                   tot_class_preds: torch.Tensor, correct_class: torch.Tensor,
+                   tot_noobj: torch.Tensor, correct_noobj: torch.Tensor,
+                   tot_obj: torch.Tensor, correct_obj: torch.Tensor
+                   ):
+    with torch.no_grad():
+        for i in range(3):
+            labels[i] = labels[i].to(config.DEVICE)
+            obj = labels[i][..., 0] == 1
+            noobj = labels[i][..., 0] == 0
 
-        with torch.no_grad():
-            predictions = model(x)
+            correct_class.add_(torch.sum(
+                torch.argmax(out[i][..., 5:][obj], dim=-1) == labels[i][..., 5][obj]
+            ))
+            tot_class_preds.add_(torch.sum(obj))
 
-        batch_size = x.shape[0]
+            obj_preds = torch.sigmoid(out[i][..., 0]) > threshold
+            correct_obj.add_(torch.sum(obj_preds[obj] == labels[i][..., 0][obj]))
+            tot_obj.add_(torch.sum(obj))
+            correct_noobj.add_(torch.sum(obj_preds[noobj] == labels[i][..., 0][noobj]))
+            tot_noobj.add_(torch.sum(noobj))
+
+
+def get_bboxes(out, labels, iou_thres, conf_thres, anchors, all_pred_boxes, all_true_boxes, batch_idx, box_format="midpoint", device="cuda"):
+    with torch.no_grad():
+        batch_size = out[0].shape[0]
         bboxes = [[] for _ in range(batch_size)]
         for i in range(3):
-            S = predictions[i].shape[2]
+            S = out[i].shape[2]
             anchor = torch.tensor([*anchors[i]]).to(device) * S
             boxes_scale_i = cells_to_bboxes(
-                predictions[i], anchor, S=S, is_preds=True
+                out[i], anchor, S=S, is_preds=True
             )
             for idx, (box) in enumerate(boxes_scale_i):
                 bboxes[idx] += box
@@ -203,75 +245,23 @@ def get_evaluation_bboxes(loader, model, iou_threshold, anchors, threshold, box_
         for idx in range(batch_size):
             nms_boxes = non_max_suppression(
                 bboxes[idx],
-                iou_threshold=iou_threshold,
-                threshold=threshold,
+                iou_threshold=iou_thres,
+                threshold=conf_thres,
                 box_format=box_format,
             )
             for nms_box in nms_boxes:
-                all_pred_boxes.append([train_idx] + nms_box)
+                all_pred_boxes.append([batch_idx * batch_size + idx] + nms_box)
 
             for box in true_bboxes[idx]:
-                if box[1] > threshold:
-                    all_true_boxes.append([train_idx] + box)
-            train_idx += 1
-
-    model.train()
-    return all_pred_boxes, all_true_boxes
-
-
-def cells_to_bboxes(predictions, anchors, S, is_preds=True):
-    BATCH_SIZE = predictions.shape[0]
-    num_anchors = len(anchors)
-    box_predictions = predictions[..., 1:5]
-    if is_preds:
-        anchors = anchors.reshape(1, len(anchors), 1, 1, 2)
-        box_predictions[..., 0:2] = torch.sigmoid(box_predictions[..., 0:2])
-        box_predictions[..., 2:] = torch.exp(box_predictions[..., 2:]) * anchors
-        scores = torch.sigmoid(predictions[..., 0:1])
-        best_class = torch.argmax(predictions[..., 5:], dim=-1).unsqueeze(-1)
-    else:
-        scores = predictions[..., 0:1]
-        best_class = predictions[..., 5:6]
-
-    cell_indices = (
-        torch.arange(S)
-        .repeat(predictions.shape[0], 3, S, 1)
-        .unsqueeze(-1)
-        .to(predictions.device)
-    )
-    x = 1 / S * (box_predictions[..., 0:1] + cell_indices)
-    y = 1 / S * (box_predictions[..., 1:2] + cell_indices.permute(0, 1, 3, 2, 4))
-    w_h = 1 / S * box_predictions[..., 2:4]
-    converted_bboxes = torch.cat((best_class, scores, x, y, w_h), dim=-1).reshape(BATCH_SIZE, num_anchors * S * S, 6)
-    return converted_bboxes.tolist()
-
-
-def check_accuracy(out, label, threshold,
-                   tot_class_preds: torch.Tensor, correct_class: torch.Tensor,
-                   tot_noobj: torch.Tensor, correct_noobj: torch.Tensor,
-                   tot_obj: torch.Tensor, correct_obj: torch.Tensor):
-    with torch.no_grad():
-        for i in range(3):
-            label[i] = label[i].to(config.DEVICE)
-            obj = label[i][..., 0] == 1
-            noobj = label[i][..., 0] == 0
-
-            correct_class.add_(torch.sum(
-                torch.argmax(out[i][..., 5:][obj], dim=-1) == label[i][..., 5][obj]
-            ))
-            tot_class_preds.add_(torch.sum(obj))
-
-            obj_preds = torch.sigmoid(out[i][..., 0]) > threshold
-            correct_obj.add_(torch.sum(obj_preds[obj] == label[i][..., 0][obj]))
-            tot_obj.add_(torch.sum(obj))
-            correct_noobj.add_(torch.sum(obj_preds[noobj] == label[i][..., 0][noobj]))
-            tot_noobj.add_(torch.sum(noobj))
+                if box[1] > conf_thres:
+                    all_true_boxes.append([batch_idx * batch_size + idx] + box)
 
 
 def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, writer, epoch):
     loop = tqdm(train_loader, leave=True)
     losses = []
     metrics = [torch.tensor(0).to(config.DEVICE) for _ in range(6)]
+    all_pred_boxes, all_true_boxes = [], []
 
     for batch_idx, (x, y) in enumerate(loop):
         x = x.to(config.DEVICE)
@@ -287,6 +277,8 @@ def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, 
         scaler.update()
         losses.append(loss.detach().item())
         check_accuracy(out, y, config.CONF_THRESHOLD, *metrics)
+        if (epoch + 1) % 5 == 0:
+            get_bboxes(out, y, config.NMS_IOU_THRESH, config.CONF_THRESHOLD, config.ANCHORS, all_pred_boxes, all_true_boxes, batch_idx)
         loop.set_postfix(loss=sum(losses) / len(losses))
 
     mean_loss = sum(losses) / len(losses)
@@ -303,12 +295,23 @@ def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, 
                                     'obj_acc_train': (correct_obj/(tot_obj+1e-16))*100,
                                     }, epoch)
 
+    if (epoch + 1) % 5 == 0:
+        mapval = mean_average_precision(
+            all_pred_boxes,
+            all_true_boxes,
+            iou_threshold=config.MAP_IOU_THRESH,
+            box_format="midpoint",
+            num_classes=config.NUM_CLASSES,
+        )
+        writer.add_scalar('mAP', mapval, epoch)
+
 
 def test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch):
     with torch.no_grad():
         loop = tqdm(test_loader, leave=True)
         losses = []
         metrics = [torch.tensor(0).to(config.DEVICE) for _ in range(6)]
+        all_pred_boxes, all_true_boxes = [], []
 
         for batch_idx, (x, y) in enumerate(loop):
             x = x.to(config.DEVICE)
@@ -318,6 +321,9 @@ def test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch):
             loss = loss_fn(out, y, scaled_anchors)
             losses.append(loss.detach().item())
             check_accuracy(out, y, config.CONF_THRESHOLD, *metrics)
+            if (epoch + 1) % 5 == 0:
+                get_bboxes(out, y, config.NMS_IOU_THRESH, config.CONF_THRESHOLD, config.ANCHORS, all_pred_boxes,
+                           all_true_boxes, batch_idx)
             loop.set_postfix(loss=sum(losses) / len(losses))
 
         mean_loss = sum(losses) / len(losses)
@@ -333,4 +339,13 @@ def test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch):
                                     'noobj_acc_test': (correct_noobj / (tot_noobj + 1e-16)) * 100,
                                     'obj_acc_test': (correct_obj / (tot_obj + 1e-16)) * 100,
                                     }, epoch)
+    if (epoch + 1) % 5 == 0:
+        mapval = mean_average_precision(
+            all_pred_boxes,
+            all_true_boxes,
+            iou_threshold=config.MAP_IOU_THRESH,
+            box_format="midpoint",
+            num_classes=config.NUM_CLASSES,
+        )
+        writer.add_scalar('mAP', mapval, epoch)
 

@@ -7,6 +7,7 @@ import os
 import cv2
 import argparse
 import random
+import imageio
 
 os.environ["CUDA_VISIBLE_DEVICES"] = '0'
 
@@ -49,6 +50,7 @@ def video_detect(detector, url, save_dir, save=False):
     sample_rate = round(0.5 * fps)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     fno = 0
+    frames = []
 
     while True:
         cap.grab()
@@ -60,6 +62,9 @@ def video_detect(detector, url, save_dir, save=False):
 
         img0 = detector.detection_image(image)
 
+        if save:
+            frames.append(cv2.cvtColor(img0, cv2.COLOR_BGR2RGB))
+
         cv2.imshow(f'video', img0)
 
         if cv2.waitKey(1) == ord('q'):
@@ -68,12 +73,19 @@ def video_detect(detector, url, save_dir, save=False):
         fno = fno + 1
 
     cv2.destroyAllWindows()
+    if save:
+        print(f'Saving to {save_dir + "/" + str(random.randint(0, 114514)) + ".gif"}')
+        imageio.mimsave(save_dir + "/" + str(random.randint(0, 114514)) + ".gif", frames, fps=fps)
 
 
 def main(args):
     # detector init
-    detector = Detector(weights=args.weights, conf_thres=args.conf_thres, iou_thres=args.iou_thres, max_det=args.max_det,
-                        opt_device=config.DEVICE, return_img=True, view_time=False
+    detector = Detector(weights=args.weights,
+                        conf_thres=args.conf_thres,
+                        iou_thres=args.iou_thres,
+                        max_det=args.max_det,
+                        opt_device=config.DEVICE,
+                        view_time=False
                         )
     for sample_dir in args.samples:
         if sample_dir.endswith('.png') or sample_dir.endswith('.jpg'):
