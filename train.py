@@ -2,6 +2,7 @@ import config
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
+import cv2
 
 from model import YOLOv3
 from utils import (
@@ -56,12 +57,12 @@ def main():
         if (epoch + 1) % 5 == 0 and config.SAVE_MODEL:
             img0 = cv_imread(config.EXAMPLE)
             detector = Detector(weights=config.CHECKPOINT_FILE,
-                                conf_thres=0.8,
+                                conf_thres=0.75,
                                 iou_thres=0.2,
                                 view_time=True,
                                 target='*')
             img0 = detector.detection_image(img0)
-            writer.add_image("results", img0.transpose(2, 0, 1), epoch)
+            writer.add_image("results", cv2.cvtColor(img0.transpose(2, 0, 1), cv2.COLOR_BGR2RGB), epoch)
 
         model.train()
 
