@@ -4,5 +4,4 @@ my_checkpoint.pth.tar
 __pycache__
 conda
 pretrained/*
-samples/*
 checkpoint/*
