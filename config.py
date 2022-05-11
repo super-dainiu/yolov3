@@ -1,6 +1,6 @@
 import torch
 import os
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
+os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'    # Avoid errors in Albumentation
 
 DATASET = 'PASCAL_VOC'
 CURRENT_EPOCH = 0
