@@ -2,7 +2,6 @@ import config
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-import random
 
 from model import YOLOv3
 from utils import (
@@ -12,7 +11,7 @@ from utils import (
     test_iter,
 )
 from dataset import get_loaders
-from detect import Detector
+from detect import Detector, cv_imread
 from torch_utils import (
     save_checkpoint,
     load_checkpoint,
@@ -56,16 +55,16 @@ def main():
         if config.SAVE_MODEL:
             save_checkpoint(model, optimizer)
 
-        if epoch % 1 == 0 and config.SAVE_MODEL:
-            example, label = random.choice(test_dataset)
+        if epoch % 5 == 0 and config.SAVE_MODEL:
+            img0 = cv_imread(config.EXAMPLE)
             detector = Detector(weights=config.CHECKPOINT_FILE,
                                 return_img=True,
                                 conf_thres=0.8,
                                 iou_thres=0.2,
                                 view_time=True,
                                 target='*')
-            detection, example = detector.detection_image(example)
-            writer.add_image("results", example, epoch)
+            img0 = detector.detection_image(img0)
+            writer.add_image("results", img0.transpose(2, 0, 1), epoch)
 
         model.train()
 

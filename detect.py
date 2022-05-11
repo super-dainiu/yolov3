@@ -25,7 +25,6 @@ class Detector(object):
                  iou_thres=0.6,  # NMS IOU threshold
                  max_det=1000,  # maximum detections per image
                  opt_device=config.DEVICE,  # cuda device, i.e. 0 or 0,1,2,3 or cpu,
-                 return_img=False,  # return image with letter box
                  view_time=False,  # show time
                  half=False,  # use FP16 half-precision inference
                  target=("*", ),  # targets for detection
@@ -39,7 +38,6 @@ class Detector(object):
         self.target = target if '*' not in target else None  # '*' to detect all possible classes
 
         # return configs
-        self.return_img = return_img
         self.view_time = view_time
 
         # load model
@@ -59,7 +57,7 @@ class Detector(object):
         if self.device != 'cpu':
             self.model(torch.zeros(1, 3, imgsz, imgsz).to(self.device).type_as(next(self.model.parameters())))
 
-    def detection_image(self, img0, name='Unknown pic'):
+    def detection_image(self, img0):
 
         # img0 to tensor
         t0 = time_synchronized()
@@ -105,7 +103,7 @@ class Detector(object):
                   f'Detection consumption: {t1:.3f}s'
                   f'\nProcess consumption: {t2:.3f}s.\n')
 
-        return img_
+        return np.ascontiguousarray(img_)
 
 
 def cv_imread(file_path):
@@ -150,19 +148,10 @@ def letterbox(im, new_shape=(config.IMAGE_SIZE, config.IMAGE_SIZE), color=(114, 
     return im, ratio, (dw, dh)
 
 
-def iterbrowse(paths):
-    path_list = []
-    for dirpath, dirnames, filesnames in os.walk(paths):
-        for filename in filesnames:
-            path_list.append(os.path.join(dirpath, filename))
-    return path_list
-
-
 if __name__ == "__main__":
     img_dir = 'samples/football.jpg'
     my_img = cv_imread(img_dir)
     detector = Detector(weights='pretrained/stage_1.pth.tar',
-                        return_img=True,
                         conf_thres=0.8,
                         iou_thres=0.2,
                         view_time=True,

@@ -292,7 +292,7 @@ def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, 
     mean_loss = sum(losses) / len(losses)
     metrics = [int(_) for _ in metrics]
     tot_class_preds, correct_class, tot_noobj, correct_noobj, tot_obj, correct_obj = metrics
-    
+
     print(f"Class accuracy is: {(correct_class / (tot_class_preds + 1e-16)) * 100:2f}%")
     print(f"No obj accuracy is: {(correct_noobj / (tot_noobj + 1e-16)) * 100:2f}%")
     print(f"Obj accuracy is: {(correct_obj / (tot_obj + 1e-16)) * 100:2f}%")

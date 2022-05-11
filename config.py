@@ -26,6 +26,7 @@ IMG_DIR = DATASET + "/images/"
 LABEL_DIR = DATASET + "/labels/"
 TRAIN_FILE = "/100examples.csv"
 TEST_FILE = "/8examples.csv"
+EXAMPLE = "samples/football.jpg"
 
 ANCHORS = [
     [(0.28, 0.22), (0.38, 0.48), (0.9, 0.78)],
