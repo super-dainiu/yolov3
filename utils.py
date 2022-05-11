@@ -1,25 +1,14 @@
 import config
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-import numpy as np
 import torch
 import os
 
 from collections import Counter
-from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
 
 
 def iou_width_height(boxes1, boxes2):
-    """
-    Parameters:
-        boxes1 (tensor): width and height of the first bounding boxes
-        boxes2 (tensor): width and height of the second bounding boxes
-    Returns:
-        tensor: Intersection over union of the corresponding boxes
-    """
     intersection = torch.min(boxes1[..., 0], boxes2[..., 0]) * torch.min(
         boxes1[..., 1], boxes2[..., 1]
     )
@@ -30,18 +19,6 @@ def iou_width_height(boxes1, boxes2):
 
 
 def intersection_over_union(boxes_preds, boxes_labels, box_format="midpoint"):
-    """
-    Video explanation of this function:
-    https://youtu.be/XXYG5ZWtjj0
-    This function calculates intersection over union (iou) given pred boxes
-    and target boxes.
-    Parameters:
-        boxes_preds (tensor): Predictions of Bounding Boxes (BATCH_SIZE, 4)
-        boxes_labels (tensor): Correct labels of Bounding Boxes (BATCH_SIZE, 4)
-        box_format (str): midpoint/corners, if boxes (x,y,w,h) or (x1,y1,x2,y2)
-    Returns:
-        tensor: Intersection over union for all examples
-    """
 
     if box_format == "midpoint":
         box1_x1 = boxes_preds[..., 0:1] - boxes_preds[..., 2:3] / 2
@@ -75,20 +52,7 @@ def intersection_over_union(boxes_preds, boxes_labels, box_format="midpoint"):
     return intersection / (box1_area + box2_area - intersection + 1e-6)
 
 
-def non_max_suppression(bboxes, iou_threshold, threshold, box_format="corners"):
-    """
-    Video explanation of this function:
-    https://youtu.be/YDkjWEN8jNA
-    Does Non Max Suppression given bboxes
-    Parameters:
-        bboxes (list): list of lists containing all bboxes with each bboxes
-        specified as [class_pred, prob_score, x1, y1, x2, y2]
-        iou_threshold (float): threshold where predicted bboxes is correct
-        threshold (float): threshold to remove predicted bboxes (independent of IoU)
-        box_format (str): "midpoint" or "corners" used to specify bboxes
-    Returns:
-        list: bboxes after performing NMS given a specific IoU threshold
-    """
+def non_max_suppression(bboxes, iou_threshold, threshold, box_format="midpoint", max_det=1000):
 
     assert type(bboxes) == list
 
@@ -96,7 +60,7 @@ def non_max_suppression(bboxes, iou_threshold, threshold, box_format="corners"):
     bboxes = sorted(bboxes, key=lambda x: x[1], reverse=True)
     bboxes_after_nms = []
 
-    while bboxes:
+    while bboxes and len(bboxes_after_nms) < max_det:
         chosen_box = bboxes.pop(0)
 
         bboxes = [
@@ -110,7 +74,6 @@ def non_max_suppression(bboxes, iou_threshold, threshold, box_format="corners"):
             )
             < iou_threshold
         ]
-
         bboxes_after_nms.append(chosen_box)
 
     return bboxes_after_nms
@@ -119,20 +82,6 @@ def non_max_suppression(bboxes, iou_threshold, threshold, box_format="corners"):
 def mean_average_precision(
     pred_boxes, true_boxes, iou_threshold=0.5, box_format="midpoint", num_classes=20
 ):
-    """
-    Video explanation of this function:
-    https://youtu.be/FppOzcDvaDI
-    This function calculates mean average precision (mAP)
-    Parameters:
-        pred_boxes (list): list of lists containing all bboxes with each bboxes
-        specified as [train_idx, class_prediction, prob_score, x1, y1, x2, y2]
-        true_boxes (list): Similar as pred_boxes except all the correct ones
-        iou_threshold (float): threshold where predicted bboxes is correct
-        box_format (str): "midpoint" or "corners" used to specify bboxes
-        num_classes (int): number of classes
-    Returns:
-        float: mAP value across all classes given a specific IoU threshold
-    """
 
     # list storing all AP for respective classes
     average_precisions = []
@@ -224,61 +173,7 @@ def mean_average_precision(
     return sum(average_precisions) / len(average_precisions)
 
 
-def plot_image(image, boxes):
-    """Plots predicted bounding boxes on the image"""
-    cmap = plt.get_cmap("tab20b")
-    class_labels = config.COCO_LABELS if config.DATASET == 'COCO' else config.PASCAL_CLASSES
-    colors = [cmap(i) for i in np.linspace(0, 1, len(class_labels))]
-    im = np.array(image)
-    height, width, _ = im.shape
-
-    # Create figure and axes
-    fig, ax = plt.subplots(1)
-    # Display the image
-    ax.imshow(im)
-
-    # box[0] is x midpoint, box[2] is width
-    # box[1] is y midpoint, box[3] is height
-
-    # Create a Rectangle patch
-    for box in boxes:
-        assert len(box) == 6, "box should contain class pred, confidence, x, y, width, height"
-        class_pred = box[0]
-        class_prob = box[1]
-        box = box[2:]
-        upper_left_x = box[0] - box[2] / 2
-        upper_left_y = box[1] - box[3] / 2
-        rect = patches.Rectangle(
-            (upper_left_x * width, upper_left_y * height),
-            box[2] * width,
-            box[3] * height,
-            linewidth=2,
-            edgecolor=colors[int(class_pred)],
-            facecolor="none",
-        )
-        # Add the patch to the Axes
-        ax.add_patch(rect)
-        plt.text(
-            upper_left_x * width,
-            upper_left_y * height,
-            s=class_labels[int(class_pred)] + f"{class_prob * 100}%",
-            color="white",
-            verticalalignment="top",
-            bbox={"color": colors[int(class_pred)], "pad": 0},
-        )
-
-    plt.show()
-
-
-def get_evaluation_bboxes(
-    loader,
-    model,
-    iou_threshold,
-    anchors,
-    threshold,
-    box_format="midpoint",
-    device="cuda",
-):
+def get_evaluation_bboxes(loader, model, iou_threshold, anchors, threshold, box_format="midpoint", device="cuda"):
     # make sure model is in eval before get bboxes
     model.eval()
     train_idx = 0
@@ -305,7 +200,6 @@ def get_evaluation_bboxes(
         true_bboxes = cells_to_bboxes(
             labels[2], anchor, S=S, is_preds=False
         )
-        print('check 1')
         for idx in range(batch_size):
             nms_boxes = non_max_suppression(
                 bboxes[idx],
@@ -313,15 +207,12 @@ def get_evaluation_bboxes(
                 threshold=threshold,
                 box_format=box_format,
             )
-            print('check 2')
             for nms_box in nms_boxes:
                 all_pred_boxes.append([train_idx] + nms_box)
 
-            print('check 3')
             for box in true_bboxes[idx]:
                 if box[1] > threshold:
                     all_true_boxes.append([train_idx] + box)
-            print('check 4')
             train_idx += 1
 
     model.train()
@@ -329,19 +220,6 @@ def get_evaluation_bboxes(
 
 
 def cells_to_bboxes(predictions, anchors, S, is_preds=True):
-    """
-    Scales the predictions coming from the model to
-    be relative to the entire image such that they for example later
-    can be plotted or.
-    INPUT:
-    predictions: tensor of size (N, 3, S, S, num_classes+5)
-    anchors: the anchors used for the predictions
-    S: the number of cells the image is divided in on the width (and height)
-    is_preds: whether the input is predictions or the true bounding boxes
-    OUTPUT:
-    converted_bboxes: the converted boxes of sizes (N, num_anchors, S, S, 1+5) with class index,
-                      object score, bounding box coordinates
-    """
     BATCH_SIZE = predictions.shape[0]
     num_anchors = len(anchors)
     box_predictions = predictions[..., 1:5]
@@ -368,152 +246,89 @@ def cells_to_bboxes(predictions, anchors, S, is_preds=True):
     return converted_bboxes.tolist()
 
 
-def check_class_accuracy(model, loader, threshold):
-    model.eval()
-    tot_class_preds, correct_class = 0, 0
-    tot_noobj, correct_noobj = 0, 0
-    tot_obj, correct_obj = 0, 0
-
-    for idx, (x, y) in enumerate(tqdm(loader)):
-        x = x.to(config.DEVICE)
-        with torch.no_grad():
-            out = model(x)
-
+def check_accuracy(out, label, threshold,
+                   tot_class_preds: torch.Tensor, correct_class: torch.Tensor,
+                   tot_noobj: torch.Tensor, correct_noobj: torch.Tensor,
+                   tot_obj: torch.Tensor, correct_obj: torch.Tensor):
+    with torch.no_grad():
         for i in range(3):
-            y[i] = y[i].to(config.DEVICE)
-            obj = y[i][..., 0] == 1 # in paper this is Iobj_i
-            noobj = y[i][..., 0] == 0  # in paper this is Iobj_i
+            label[i] = label[i].to(config.DEVICE)
+            obj = label[i][..., 0] == 1
+            noobj = label[i][..., 0] == 0
 
-            correct_class += torch.sum(
-                torch.argmax(out[i][..., 5:][obj], dim=-1) == y[i][..., 5][obj]
-            )
-            tot_class_preds += torch.sum(obj)
+            correct_class.add_(torch.sum(
+                torch.argmax(out[i][..., 5:][obj], dim=-1) == label[i][..., 5][obj]
+            ))
+            tot_class_preds.add_(torch.sum(obj))
 
             obj_preds = torch.sigmoid(out[i][..., 0]) > threshold
-            correct_obj += torch.sum(obj_preds[obj] == y[i][..., 0][obj])
-            tot_obj += torch.sum(obj)
-            correct_noobj += torch.sum(obj_preds[noobj] == y[i][..., 0][noobj])
-            tot_noobj += torch.sum(noobj)
-
-    print(f"Class accuracy is: {(correct_class/(tot_class_preds+1e-16))*100:2f}%")
-    print(f"No obj accuracy is: {(correct_noobj/(tot_noobj+1e-16))*100:2f}%")
-    print(f"Obj accuracy is: {(correct_obj/(tot_obj+1e-16))*100:2f}%")
-    model.train()
-    return (correct_class/(tot_class_preds+1e-16))*100, (correct_noobj/(tot_noobj+1e-16))*100, (correct_obj/(tot_obj+1e-16))*100
+            correct_obj.add_(torch.sum(obj_preds[obj] == label[i][..., 0][obj]))
+            tot_obj.add_(torch.sum(obj))
+            correct_noobj.add_(torch.sum(obj_preds[noobj] == label[i][..., 0][noobj]))
+            tot_noobj.add_(torch.sum(noobj))
 
 
-def get_mean_std(loader):
-    # var[X] = E[X**2] - E[X]**2
-    channels_sum, channels_sqrd_sum, num_batches = 0, 0, 0
+def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, writer, epoch):
+    loop = tqdm(train_loader, leave=True)
+    losses = []
+    metrics = [torch.tensor(0).to(config.DEVICE) for _ in range(6)]
 
-    for data, _ in tqdm(loader):
-        channels_sum += torch.mean(data, dim=[0, 2, 3])
-        channels_sqrd_sum += torch.mean(data ** 2, dim=[0, 2, 3])
-        num_batches += 1
+    for batch_idx, (x, y) in enumerate(loop):
+        x = x.to(config.DEVICE)
+        y = [_.to(config.DEVICE) for _ in y]
 
-    mean = channels_sum / num_batches
-    std = (channels_sqrd_sum / num_batches - mean ** 2) ** 0.5
+        with torch.cuda.amp.autocast():
+            out = model(x)
+            loss = loss_fn(out, y, scaled_anchors)
 
-    return mean, std
+        optimizer.zero_grad()
+        scaler.scale(loss).backward()
+        scaler.step(optimizer)
+        scaler.update()
+        losses.append(loss.detach().item())
+        check_accuracy(out, y, config.CONF_THRESHOLD, *metrics)
+        loop.set_postfix(loss=sum(losses) / len(losses))
 
+    mean_loss = sum(losses) / len(losses)
+    metrics = [int(_) for _ in metrics]
+    tot_class_preds, correct_class, tot_noobj, correct_noobj, tot_obj, correct_obj = metrics
+    print(f"Class accuracy is: {(correct_class / (tot_class_preds + 1e-16)) * 100:2f}%")
+    print(f"No obj accuracy is: {(correct_noobj / (tot_noobj + 1e-16)) * 100:2f}%")
+    print(f"Obj accuracy is: {(correct_obj / (tot_obj + 1e-16)) * 100:2f}%")
 
-def save_checkpoint(model, optimizer, filename="my_checkpoint.pth.tar"):
-    print("=> Saving checkpoint")
-    checkpoint = {
-        "state_dict": model.state_dict(),
-        "optimizer": optimizer.state_dict(),
-    }
-    torch.save(checkpoint, filename)
-
-
-def load_checkpoint(checkpoint_file, model, optimizer, lr):
-    print("=> Loading checkpoint")
-    checkpoint = torch.load(checkpoint_file, map_location=config.DEVICE)
-    model.load_state_dict(checkpoint["state_dict"])
-    optimizer.load_state_dict(checkpoint["optimizer"])
-
-    # If we don't do this then it will just have learning rate of old checkpoint
-    # and it will lead to many hours of debugging \:
-    for param_group in optimizer.param_groups:
-        param_group["lr"] = lr
+    writer.add_scalar('train_loss', mean_loss, epoch)
+    writer.add_scalars('accuracy', {'class_acc_train': (correct_class/(tot_class_preds+1e-16))*100,
+                                    'noobj_acc_train': (correct_noobj/(tot_noobj+1e-16))*100,
+                                    'obj_acc_train': (correct_obj/(tot_obj+1e-16))*100,
+                                    }, epoch)
 
 
-def get_loaders(train_csv_path, test_csv_path):
-    from dataset import YOLODataset
-
-    IMAGE_SIZE = config.IMAGE_SIZE
-    train_dataset = YOLODataset(
-        train_csv_path,
-        transform=config.train_transforms,
-        S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
-        img_dir=config.IMG_DIR,
-        label_dir=config.LABEL_DIR,
-        anchors=config.ANCHORS,
-    )
-    test_dataset = YOLODataset(
-        test_csv_path,
-        transform=config.test_transforms,
-        S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
-        img_dir=config.IMG_DIR,
-        label_dir=config.LABEL_DIR,
-        anchors=config.ANCHORS,
-    )
-    train_loader = DataLoader(
-        dataset=train_dataset,
-        batch_size=config.BATCH_SIZE,
-        num_workers=config.NUM_WORKERS,
-        pin_memory=config.PIN_MEMORY,
-        shuffle=True,
-        drop_last=False,
-    )
-    test_loader = DataLoader(
-        dataset=test_dataset,
-        batch_size=config.BATCH_SIZE,
-        num_workers=config.NUM_WORKERS,
-        pin_memory=config.PIN_MEMORY,
-        shuffle=False,
-        drop_last=False,
-    )
-
-    train_eval_dataset = YOLODataset(
-        train_csv_path,
-        transform=config.test_transforms,
-        S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
-        img_dir=config.IMG_DIR,
-        label_dir=config.LABEL_DIR,
-        anchors=config.ANCHORS,
-    )
-    train_eval_loader = DataLoader(
-        dataset=train_eval_dataset,
-        batch_size=config.BATCH_SIZE,
-        num_workers=config.NUM_WORKERS,
-        pin_memory=config.PIN_MEMORY,
-        shuffle=False,
-        drop_last=False,
-    )
-
-    return train_loader, test_loader, train_eval_loader
-
-def plot_couple_examples(model, loader, thresh, iou_thresh, anchors):
-    model.eval()
-    x, y = next(iter(loader))
-    x = x.to("cuda")
+def test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch):
     with torch.no_grad():
-        out = model(x)
-        bboxes = [[] for _ in range(x.shape[0])]
-        for i in range(3):
-            batch_size, A, S, _, _ = out[i].shape
-            anchor = anchors[i]
-            boxes_scale_i = cells_to_bboxes(
-                out[i], anchor, S=S, is_preds=True
-            )
-            for idx, (box) in enumerate(boxes_scale_i):
-                bboxes[idx] += box
+        loop = tqdm(test_loader, leave=True)
+        losses = []
+        metrics = [torch.tensor(0).to(config.DEVICE) for _ in range(6)]
 
-        model.train()
+        for batch_idx, (x, y) in enumerate(loop):
+            x = x.to(config.DEVICE)
+            y = [_.to(config.DEVICE) for _ in y]
 
-    for i in range(batch_size):
-        nms_boxes = non_max_suppression(
-            bboxes[i], iou_threshold=iou_thresh, threshold=thresh, box_format="midpoint",
-        )
-        plot_image(x[i].permute(1,2,0).detach().cpu(), nms_boxes)
+            out = model(x)
+            loss = loss_fn(out, y, scaled_anchors)
+            losses.append(loss.detach().item())
+            check_accuracy(out, y, config.CONF_THRESHOLD, *metrics)
+            loop.set_postfix(loss=sum(losses) / len(losses))
+
+        mean_loss = sum(losses) / len(losses)
+        metrics = [int(_) for _ in metrics]
+        tot_class_preds, correct_class, tot_noobj, correct_noobj, tot_obj, correct_obj = metrics
+        print(f"Class accuracy is: {(correct_class / (tot_class_preds + 1e-16)) * 100:2f}%")
+        print(f"No obj accuracy is: {(correct_noobj / (tot_noobj + 1e-16)) * 100:2f}%")
+        print(f"Obj accuracy is: {(correct_obj / (tot_obj + 1e-16)) * 100:2f}%")
+
+        writer.add_scalar('test_loss', mean_loss, epoch)
+        writer.add_scalars('accuracy', {'class_acc_test': (correct_class / (tot_class_preds + 1e-16)) * 100,
+                                        'noobj_acc_test': (correct_noobj / (tot_noobj + 1e-16)) * 100,
+                                        'obj_acc_test': (correct_obj / (tot_obj + 1e-16)) * 100,
+                                        }, epoch)
+

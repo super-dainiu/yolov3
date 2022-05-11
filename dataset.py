@@ -1,18 +1,15 @@
-import os
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
-
 import numpy as np
 import pandas as pd
 import torch
 import config
-
+import os
+import augmentations
 from PIL import Image, ImageFile
 from torch.utils.data import Dataset, DataLoader
 from utils import (
     cells_to_bboxes,
     iou_width_height as iou,
     non_max_suppression as nms,
-    plot_image
 )
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -77,10 +74,48 @@ class YOLODataset(Dataset):
         return image, tuple(targets)
 
 
+def get_loaders(train_csv_path, test_csv_path):
+
+    IMAGE_SIZE = config.IMAGE_SIZE
+    train_dataset = YOLODataset(
+        train_csv_path,
+        transform=augmentations.train_transforms,
+        S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
+        img_dir=config.IMG_DIR,
+        label_dir=config.LABEL_DIR,
+        anchors=config.ANCHORS,
+    )
+    test_dataset = YOLODataset(
+        test_csv_path,
+        transform=augmentations.test_transforms,
+        S=[IMAGE_SIZE // 32, IMAGE_SIZE // 16, IMAGE_SIZE // 8],
+        img_dir=config.IMG_DIR,
+        label_dir=config.LABEL_DIR,
+        anchors=config.ANCHORS,
+    )
+    train_loader = DataLoader(
+        dataset=train_dataset,
+        batch_size=config.BATCH_SIZE,
+        num_workers=config.NUM_WORKERS,
+        pin_memory=config.PIN_MEMORY,
+        shuffle=True,
+        drop_last=False,
+    )
+    test_loader = DataLoader(
+        dataset=test_dataset,
+        batch_size=config.BATCH_SIZE,
+        num_workers=config.NUM_WORKERS,
+        pin_memory=config.PIN_MEMORY,
+        shuffle=False,
+        drop_last=False,
+    )
+    return train_dataset, test_dataset, train_loader, test_loader
+
+
 def test():
     anchors = config.ANCHORS
 
-    transform = config.test_transforms
+    transform = augmentations.test_transforms
 
     dataset = YOLODataset(
         "PASCAL_VOC/train.csv",
@@ -105,8 +140,6 @@ def test():
                 y[i], is_preds=False, S=y[i].shape[2], anchors=anchor
             )[0]
         boxes = nms(boxes, iou_threshold=0.5, threshold=0.5, box_format="midpoint")
-        print(boxes)
-        plot_image(x[0].permute(1, 2, 0).to("cpu"), boxes)
 
 
 if __name__ == "__main__":
