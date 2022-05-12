@@ -25,25 +25,35 @@ Please follow the guide in [./pretrained](./pretrained) directory
 After downloading the weights, you can do detection for images, gifs, or mp4 with [main.py](main.py).
 
 >usage: main.py [-h] --weights WEIGHTS [--save SAVE] [--save_dir SAVE_DIR] [--conf_thres CONF_THRES] [--iou_thres IOU_THRES] [--max_det MAX_DET] [--target TARGET [TARGET ...]]
->               [--camera CAMERA] [--samples SAMPLES [SAMPLES ...]]
+>          [--camera CAMERA] [--samples SAMPLES [SAMPLES ...]]
 >
 >Use YOLOv3
 >
 >optional arguments:
->  -h, --help            show this help message and exit
->  --weights WEIGHTS     Weight directory
->  --save SAVE           Save results
->  --save_dir SAVE_DIR   Save directory
->  --conf_thres CONF_THRES
->                        Confidence threshold
->  --iou_thres IOU_THRES
->                        IOU threshold
->  --max_det MAX_DET     Maximum detection per frame
->  --target TARGET [TARGET ...]
->                        Targets (i.e. person), * for all classes
->  --camera CAMERA       Use your camera
->  --samples SAMPLES [SAMPLES ...]
->                        Sample images (ends with .jpg, .png, .gif, .mp4)
+>
+>-h, --help            show this help message and exit
+>
+>--weights WEIGHTS     Weight directory
+>
+>--save SAVE           Save results
+>
+>--save_dir SAVE_DIR   Save directory
+>
+>--conf_thres CONF_THRES
+>                   Confidence threshold
+>
+>--iou_thres IOU_THRES
+>                   IOU threshold
+>
+>--max_det MAX_DET     Maximum detection per frame
+>
+>--target TARGET [TARGET ...]
+>                   Targets (i.e. person), * for all classes
+>
+>--camera CAMERA       Use your camera
+>
+>--samples SAMPLES [SAMPLES ...]
+>                   Sample images (ends with .jpg, .png, .gif, .mp4)
 
 You might do a simple detection with the following bash command.
 
