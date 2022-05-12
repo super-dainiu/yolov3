@@ -10,7 +10,7 @@ YOLOv3 🚀 is an open-source object detection architecture first proposed by Jo
 
 #### Install
 
-[Python>=3.6.0](https://www.python.org/) is required with all [requirements.txt](./requirements.txt) installed including [PyTorch>=1.7](https://pytorch.org/get-started/locally/):
+[Python>=3.6.0](https://www.python.org/) is required with all [requirements.txt](./requirements.txt) installed including [PyTorch>=1.9.0](https://pytorch.org/get-started/locally/):
 
 ```bash
 git clone https://github.com/super-dainiu/yolov3
