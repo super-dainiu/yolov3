@@ -189,6 +189,8 @@ def mean_average_precision(
             else:
                 FP[detection_idx] = 1
 
+            # print(best_iou)
+        # print(TP, iou_threshold)
         TP_cumsum = torch.cumsum(TP, dim=0)
         FP_cumsum = torch.cumsum(FP, dim=0)
         recalls = TP_cumsum / (total_true_bboxes + epsilon)
@@ -196,8 +198,9 @@ def mean_average_precision(
         precisions = torch.cat((torch.tensor([1]), precisions))
         recalls = torch.cat((torch.tensor([0]), recalls))
         # torch.trapz for numerical integration
-        average_precisions[config.PASCAL_CLASSES[c]] = torch.trapz(precisions, recalls).item()
+        average_precisions[config.PASCAL_CLASSES[c]] = torch.trapz(precisions, recalls).item() * 100
 
+    print("Class mAP:")
     pprint.pprint(average_precisions)
     return sum(average_precisions.values()) / len(average_precisions)
 
@@ -257,11 +260,59 @@ def get_bboxes(out, labels, iou_thres, conf_thres, anchors, all_pred_boxes, all_
                     all_true_boxes.append([batch_idx * batch_size + idx] + box)
 
 
-def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, writer, epoch):
-    loop = tqdm(train_loader, leave=True)
+def get_evaluation_bboxes(loader, model, iou_threshold, anchors, threshold, box_format="midpoint", device="cuda",):
+    # make sure model is in eval before get bboxes
+    model.eval()
+    train_idx = 0
+    all_pred_boxes = []
+    all_true_boxes = []
+    for batch_idx, (x, labels) in enumerate(tqdm(loader)):
+        x = x.to(device)
+
+        with torch.no_grad():
+            predictions = model(x)
+
+        batch_size = x.shape[0]
+        bboxes = [[] for _ in range(batch_size)]
+        for i in range(3):
+            S = predictions[i].shape[2]
+            anchor = torch.tensor([*anchors[i]]).to(device) * S
+            boxes_scale_i = cells_to_bboxes(
+                predictions[i], anchor, S=S, is_preds=True
+            )
+            for idx, (box) in enumerate(boxes_scale_i):
+                bboxes[idx] += box
+
+        # we just want one bbox for each label, not one for each scale
+        true_bboxes = cells_to_bboxes(
+            labels[2], anchor, S=S, is_preds=False
+        )
+
+        for idx in range(batch_size):
+            nms_boxes = non_max_suppression(
+                bboxes[idx],
+                iou_threshold=iou_threshold,
+                threshold=threshold,
+                box_format=box_format,
+            )
+
+            for nms_box in nms_boxes:
+                all_pred_boxes.append([train_idx] + nms_box)
+
+            for box in true_bboxes[idx]:
+                if box[1] > threshold:
+                    all_true_boxes.append([train_idx] + box)
+
+            train_idx += 1
+
+    model.train()
+    return all_pred_boxes, all_true_boxes
+
+
+def train_iter(loader, model, optimizer, loss_fn, scaler, scheduler, scaled_anchors, writer, epoch):
+    loop = tqdm(loader, leave=True)
     losses = []
     metrics = [torch.tensor(0).to(config.DEVICE) for _ in range(6)]
-    all_pred_boxes, all_true_boxes = [], []
 
     for batch_idx, (x, y) in enumerate(loop):
         x = x.to(config.DEVICE)
@@ -277,25 +328,24 @@ def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, 
         scaler.update()
         losses.append(loss.detach().item())
         check_accuracy(out, y, config.CONF_THRESHOLD, *metrics)
-        if (epoch + 1) % 5 == 0:
-            get_bboxes(out, y, config.NMS_IOU_THRESH, config.CONF_THRESHOLD, config.ANCHORS, all_pred_boxes, all_true_boxes, batch_idx)
-        loop.set_postfix(loss=sum(losses) / len(losses))
+        loop.set_postfix(loss=sum(losses) / len(losses), lr=scheduler.get_last_lr())
 
     mean_loss = sum(losses) / len(losses)
     metrics = [int(_) for _ in metrics]
     tot_class_preds, correct_class, tot_noobj, correct_noobj, tot_obj, correct_obj = metrics
 
+    writer.add_scalars('loss', {'train_loss': mean_loss}, epoch)
+    writer.add_scalar('learning rate', scheduler.get_last_lr()[0], epoch)
     print(f"Class accuracy is: {(correct_class / (tot_class_preds + 1e-16)) * 100:2f}%")
     print(f"No obj accuracy is: {(correct_noobj / (tot_noobj + 1e-16)) * 100:2f}%")
     print(f"Obj accuracy is: {(correct_obj / (tot_obj + 1e-16)) * 100:2f}%")
-
-    writer.add_scalar('train_loss', mean_loss, epoch)
     writer.add_scalars('accuracy', {'class_acc_train': (correct_class/(tot_class_preds+1e-16))*100,
                                     'noobj_acc_train': (correct_noobj/(tot_noobj+1e-16))*100,
                                     'obj_acc_train': (correct_obj/(tot_obj+1e-16))*100,
                                     }, epoch)
 
-    if (epoch + 1) % 5 == 0:
+    if (epoch + 1) % 10 == 0:
+        all_pred_boxes, all_true_boxes = get_evaluation_bboxes(loader, model, config.NMS_IOU_THRESH, config.ANCHORS, config.CONF_THRESHOLD)
         mapval = mean_average_precision(
             all_pred_boxes,
             all_true_boxes,
@@ -303,15 +353,15 @@ def train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, 
             box_format="midpoint",
             num_classes=config.NUM_CLASSES,
         )
-        writer.add_scalar('mAP', mapval, epoch)
+        print(f"Train mAP: {mapval}")
+        writer.add_scalars('mAP', {'mAP_train': mapval}, epoch)
 
 
-def test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch):
+def test_iter(loader, model, loss_fn, scaled_anchors, writer, epoch):
     with torch.no_grad():
-        loop = tqdm(test_loader, leave=True)
+        loop = tqdm(loader, leave=True)
         losses = []
         metrics = [torch.tensor(0).to(config.DEVICE) for _ in range(6)]
-        all_pred_boxes, all_true_boxes = [], []
 
         for batch_idx, (x, y) in enumerate(loop):
             x = x.to(config.DEVICE)
@@ -321,25 +371,23 @@ def test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch):
             loss = loss_fn(out, y, scaled_anchors)
             losses.append(loss.detach().item())
             check_accuracy(out, y, config.CONF_THRESHOLD, *metrics)
-            if (epoch + 1) % 5 == 0:
-                get_bboxes(out, y, config.NMS_IOU_THRESH, config.CONF_THRESHOLD, config.ANCHORS, all_pred_boxes,
-                           all_true_boxes, batch_idx)
             loop.set_postfix(loss=sum(losses) / len(losses))
 
         mean_loss = sum(losses) / len(losses)
         metrics = [int(_) for _ in metrics]
         tot_class_preds, correct_class, tot_noobj, correct_noobj, tot_obj, correct_obj = metrics
 
+    writer.add_scalars('loss', {'test_loss': mean_loss}, epoch)
     print(f"Class accuracy is: {(correct_class / (tot_class_preds + 1e-16)) * 100:2f}%")
     print(f"No obj accuracy is: {(correct_noobj / (tot_noobj + 1e-16)) * 100:2f}%")
     print(f"Obj accuracy is: {(correct_obj / (tot_obj + 1e-16)) * 100:2f}%")
-
-    writer.add_scalar('test_loss', mean_loss, epoch)
     writer.add_scalars('accuracy', {'class_acc_test': (correct_class / (tot_class_preds + 1e-16)) * 100,
                                     'noobj_acc_test': (correct_noobj / (tot_noobj + 1e-16)) * 100,
                                     'obj_acc_test': (correct_obj / (tot_obj + 1e-16)) * 100,
                                     }, epoch)
-    if (epoch + 1) % 5 == 0:
+    if (epoch + 1) % 10 == 0:
+        all_pred_boxes, all_true_boxes = get_evaluation_bboxes(loader, model, config.NMS_IOU_THRESH, config.ANCHORS,
+                                                               config.CONF_THRESHOLD)
         mapval = mean_average_precision(
             all_pred_boxes,
             all_true_boxes,
@@ -347,5 +395,5 @@ def test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch):
             box_format="midpoint",
             num_classes=config.NUM_CLASSES,
         )
-        writer.add_scalar('mAP', mapval, epoch)
-
+        print(f"Test mAP: {mapval}")
+        writer.add_scalars('mAP', {'mAP_test': mapval}, epoch)

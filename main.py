@@ -36,8 +36,9 @@ def img_detect(detector, img_dir, save_dir, save=False):
     img0 = detector.detection_image(img0)
     cv2.imshow('image', img0)
     if save:
-        print(f'Saving to {save_dir + "/" + str(random.randint(0, 114514)) + ".jpg"}')
-        cv2.imwrite(save_dir + "/" + str(random.randint(0, 114514)) + ".jpg", img0)
+        save_dir = save_dir + "/" + str(random.randint(0, 114514)) + ".jpg"
+        print(f'Saving to {save_dir}')
+        cv2.imwrite(save_dir, img0)
     cv2.waitKey(0)
 
 
@@ -74,8 +75,9 @@ def video_detect(detector, url, save_dir, save=False):
 
     cv2.destroyAllWindows()
     if save:
-        print(f'Saving to {save_dir + "/" + str(random.randint(0, 114514)) + ".gif"}')
-        imageio.mimsave(save_dir + "/" + str(random.randint(0, 114514)) + ".gif", frames, fps=fps)
+        save_dir = save_dir + "/" + str(random.randint(0, 114514)) + ".gif"
+        print(f'Saving to {save_dir}')
+        imageio.mimsave(save_dir, frames, fps=fps)
 
 
 def main(args):
@@ -85,8 +87,14 @@ def main(args):
                         iou_thres=args.iou_thres,
                         max_det=args.max_det,
                         opt_device=config.DEVICE,
+                        target=args.target,
                         view_time=False
                         )
+
+    if args.camera:
+        video_detect(detector, 0, args.save_dir)
+        return 0
+
     for sample_dir in args.samples:
         if sample_dir.endswith('.png') or sample_dir.endswith('.jpg'):
             img_detect(detector, sample_dir, args.save_dir, args.save)
@@ -102,10 +110,12 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Use YOLOv3')
     parser.add_argument('--weights', type=file_path, required=True, help='Weight directory')
     parser.add_argument('--save', type=bool, default=False, help='Save results')
-    parser.add_argument('--save_dir', type=dir_path, default='outputs', help='Save results')
-    parser.add_argument('--conf_thres', type=float, default=0.75, help='Confidence threshold.')
-    parser.add_argument('--iou_thres', type=float, default=0.3, help='IOU threshold.')
-    parser.add_argument('--max_det', type=int, default=100, help='Maximum detection per frame.')
-    parser.add_argument('samples', type=file_path, nargs='+', help='Sample images (ends with .jpg, .png, .gif, .mp4)')
+    parser.add_argument('--save_dir', type=dir_path, default='outputs', help='Save directory')
+    parser.add_argument('--conf_thres', type=float, default=0.75, help='Confidence threshold')
+    parser.add_argument('--iou_thres', type=float, default=0.3, help='IOU threshold')
+    parser.add_argument('--max_det', type=int, default=100, help='Maximum detection per frame')
+    parser.add_argument('--target', type=str, nargs='+', default=("*", ), help='Targets (i.e. person), * for all classes')
+    parser.add_argument('--camera', type=bool, default=False, help='Use your camera')
+    parser.add_argument('--samples', type=file_path, nargs='+', help='Sample images (ends with .jpg, .png, .gif, .mp4)')
     args = parser.parse_args()
     main(args)

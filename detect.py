@@ -93,7 +93,7 @@ class Detector(object):
 
         # Process detections
         t2 = time_synchronized()
-        img_ = plot_boxes(img_, bboxes)
+        img_ = plot_boxes(img_, bboxes, targets=self.target)
         t2 = time_synchronized()-t2
 
         # Print time

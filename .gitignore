@@ -5,5 +5,4 @@ __pycache__
 conda
 pretrained/*.pth.tar
 checkpoint/*.pth.tar
-outputs/*
 runs/*

@@ -1,7 +1,5 @@
 import cv2
 import matplotlib
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
 import numpy as np
 import config
 
@@ -42,7 +40,7 @@ def plot_one_box(x, im, color=(128, 128, 128), label=None, line_thickness=3):
         cv2.putText(im, label, (c1[0], c1[1] - 2), 0, tl / 3, [225, 255, 255], thickness=tf, lineType=cv2.LINE_AA)
 
 
-def plot_boxes(image, boxes, box_format="midpoint"):
+def plot_boxes(image, boxes, box_format="midpoint", targets=config.PASCAL_CLASSES):
     cmap = Colors()
     class_labels = config.PASCAL_CLASSES
     colors = [cmap(i) for i in range(len(class_labels))]
@@ -51,6 +49,9 @@ def plot_boxes(image, boxes, box_format="midpoint"):
 
     for box in boxes:
         assert len(box) == 6, "box should contain class pred, confidence, x, y, width, height"
+
+        if class_labels[int(box[0])] not in targets:
+            continue
         class_pred = box[0]
         class_prob = box[1]
         box = box[2:]
