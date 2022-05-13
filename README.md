@@ -2,7 +2,7 @@
 
 This is the mid-term project for DATA130051 Computer Vision. 
 
-<img src="random/yolov3.JPG"  />
+<img src="random/yolov3.JPG" align="center"/>
 
 YOLOv3 🚀 is an open-source object detection architecture first proposed by Joseph Redmon[[1](https://pjreddie.com/)]. I managed to reproduce the network from scratch with the help of Aladdin Persson[[2](https://github.com/aladdinpersson/)] and his excellent video tutorials[[3](https://www.youtube.com/watch?v=Grir6TZbc1M)]. Basically, I reimplemented YOLOv3 model as well as the utils and metrics for detections. Also, a detector class was written to provide a shortcut for video detections. Again, thanks a lot for those who contribute to this open-source society! 🤗
 
