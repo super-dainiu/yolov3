@@ -9,8 +9,10 @@ import numpy as np
 from utils import non_max_suppression, cells_to_bboxes
 from torch_utils import attempt_load, time_synchronized
 from plots import Colors, plot_boxes
+from augmentations import detect_transforms, image_transforms
 import config
 from model import YOLOv3
+from PIL import Image
 
 FILE = Path(__file__).absolute()
 sys.path.append(FILE.parents[0].as_posix())  # add yolov3/ to path
@@ -61,14 +63,10 @@ class Detector(object):
 
         # img0 to tensor
         t0 = time_synchronized()
-        img = letterbox(img0, self.imgsz)[0]
-        img_ = img.copy()
-        img = img.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
-        img = np.ascontiguousarray(img)
-        img = torch.from_numpy(img).to(self.device)
+        img = detect_transforms(image=img0)['image']
+        img_ = image_transforms(image=img0)['image']
         img = img.half() if self.half else img.float()  # uint8 to fp16/32
-        img /= 255.0  # 0 - 255 to 0.0 - 1.0
-        img = img.unsqueeze(0)
+        img = img.unsqueeze(0).to(config.DEVICE)
         t0 = time_synchronized()-t0
 
         # Do detections
@@ -106,51 +104,16 @@ class Detector(object):
         return np.ascontiguousarray(img_)
 
 
-def cv_imread(file_path):
+def imread(file_path):
     # OpenCV read image file for test
-    cv_img = cv2.imdecode(np.fromfile(file_path, dtype=np.uint8), -1)
-    if cv_img.shape[2] == 4:
-        return cv2.cvtColor(cv_img, cv2.COLOR_RGBA2RGB)
-    return cv_img
-
-
-def letterbox(im, new_shape=(config.IMAGE_SIZE, config.IMAGE_SIZE), color=(0, 0, 0), auto=False,
-              scaleFill=False, scaleup=True, stride=32):
-    # Resize and pad image while meeting stride-multiple constraints
-    shape = im.shape[:2]  # current shape [height, width]
-    if isinstance(new_shape, int):
-        new_shape = (new_shape, new_shape)
-
-    # Scale ratio (new / old)
-    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
-    if not scaleup:  # only scale down, do not scale up (for better test mAP)
-        r = min(r, 1.0)
-
-    # Compute padding
-    ratio = r, r  # width, height ratios
-    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
-    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
-    if auto:  # minimum rectangle
-        dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
-    elif scaleFill:  # stretch
-        dw, dh = 0.0, 0.0
-        new_unpad = (new_shape[1], new_shape[0])
-        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
-
-    dw /= 2  # divide padding into 2 sides
-    dh /= 2
-
-    if shape[::-1] != new_unpad:  # resize
-        im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
-    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
-    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    im = cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
-    return im, ratio, (dw, dh)
+    image = np.array(Image.open(file_path).convert("RGB"))
+    image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+    return image
 
 
 if __name__ == "__main__":
     img_dir = 'samples/football.jpg'
-    my_img = cv_imread(img_dir)
+    my_img = imread(img_dir)
     detector = Detector(weights='pretrained/stage_1.pth.tar',
                         conf_thres=0.8,
                         iou_thres=0.2,

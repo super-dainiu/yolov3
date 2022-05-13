@@ -102,15 +102,19 @@ python main.py --weights pretrained/yolov3.pth.tar --camera True
 <details open>
 <summary>Transformer</summary>
     <img src="random/transformer.gif" style="zoom:100%;" align="center" />
+</details>
 
 <details open>
 <summary>CR7 Celebration</summary>
     <img src="random/ronaldo.gif" style="zoom:100%;" align="center" />
+</details>
 
 <details open>
 <summary>Maguire and Lingod</summary>
     <img src="random/maguire.jpg" style="zoom:100%;" align="center"/>
+</details>
 
 <details open>
 <summary>The dog</summary>
     <img src="random/dog.jpg" style="zoom:100%;" align="center" />
+</details>

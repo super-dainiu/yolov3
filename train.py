@@ -11,7 +11,7 @@ from utils import (
     test_iter,
 )
 from dataset import get_loaders
-from detect import Detector, cv_imread
+from detect import Detector, imread
 from torch_utils import (
     save_checkpoint,
     load_checkpoint,
@@ -58,14 +58,14 @@ def main():
             save_checkpoint(model, optimizer, config.CHECKPOINT_FILE.format(epoch + config.CURRENT_EPOCH))
 
         if (epoch + 1) % 1 == 0 and config.SAVE_MODEL:
-            img0 = cv_imread(random.choice(config.EXAMPLE))
+            img0 = imread(random.choice(config.EXAMPLE))
             detector = Detector(weights=config.CHECKPOINT_FILE.format(epoch + config.CURRENT_EPOCH),
                                 conf_thres=0.8,
                                 iou_thres=0.2,
                                 view_time=True,
                                 target='*')
             img0 = detector.detection_image(img0)
-            writer.add_image("results", cv2.cvtColor(img0, cv2.COLOR_BGR2RGB).transpose(2, 0, 1), epoch)
+            writer.add_image("results", img0.transpose(2, 0, 1), epoch)
 
         model.train()
 

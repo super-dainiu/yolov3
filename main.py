@@ -1,7 +1,7 @@
 import config
 from detect import (
     Detector,
-    cv_imread,
+    imread,
 )
 import os
 import cv2
@@ -32,7 +32,7 @@ def file_path(string):
 
 
 def img_detect(detector, img_dir, save_dir, save=False):
-    img0 = cv_imread(img_dir)
+    img0 = imread(img_dir)
     img0 = detector.detection_image(img0)
     cv2.imshow('image', img0)
     if save:

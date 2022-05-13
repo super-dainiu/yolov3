@@ -46,3 +46,23 @@ test_transforms = A.Compose(
     ],
     bbox_params=A.BboxParams(format="yolo", min_visibility=0.4, label_fields=[]),
 )
+
+detect_transforms = A.Compose(
+    [
+        A.LongestMaxSize(max_size=config.IMAGE_SIZE),
+        A.PadIfNeeded(
+            min_height=config.IMAGE_SIZE, min_width=config.IMAGE_SIZE, border_mode=cv2.BORDER_CONSTANT
+        ),
+    ToTensorV2(),
+    ],
+)
+
+image_transforms = A.Compose(
+    [
+        A.LongestMaxSize(max_size=config.IMAGE_SIZE),
+        A.PadIfNeeded(
+            min_height=config.IMAGE_SIZE, min_width=config.IMAGE_SIZE, border_mode=cv2.BORDER_CONSTANT
+        ),
+    ],
+)
+
