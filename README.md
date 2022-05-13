@@ -113,8 +113,17 @@ python main.py --weights pretrained/yolov3.pth.tar --camera True
 <summary>Maguire and Lingod</summary>
     <img src="random/maguire.jpg" style="zoom:100%;" align="center"/>
 </details>
-
 <details open>
 <summary>The dog</summary>
     <img src="random/dog.jpg" style="zoom:100%;" align="center" />
 </details>
+<details open>
+<summary>The cat</summary>
+    <img src="random/cat.png" style="zoom:100%;" align="center" />
+</details>
+
+<details open>
+<summary>Car</summary>
+    <img src="random/car_3.png" style="zoom:100%;" align="center" />
+</details>
+
