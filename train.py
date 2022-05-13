@@ -3,6 +3,7 @@ import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
 import cv2
+import random
 
 from model import YOLOv3
 from utils import (
@@ -32,6 +33,7 @@ def main():
     loss_fn = YOLOLoss()
     scaler = torch.cuda.amp.GradScaler()
     writer = SummaryWriter(config.WRITER)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=config.NUM_EPOCHS // 2)
 
     train_dataset, test_dataset, train_loader, test_loader = get_loaders(
         train_csv_path=config.DATASET+config.TRAIN_FILE, test_csv_path=config.DATASET+config.TEST_FILE
@@ -47,22 +49,23 @@ def main():
 
     for epoch in range(config.NUM_EPOCHS):
         print(f"Train epoch: {epoch + 1}")
-        train_iter(train_loader, model, optimizer, loss_fn, scaler, scaled_anchors, writer, epoch + config.CURRENT_EPOCH)
+        train_iter(train_loader, model, optimizer, loss_fn, scaler, scheduler, scaled_anchors, writer, epoch + config.CURRENT_EPOCH)
         print(f"Test epoch: {epoch + 1}")
         test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch + config.CURRENT_EPOCH)
+        scheduler.step()
 
         if config.SAVE_MODEL:
-            save_checkpoint(model, optimizer)
+            save_checkpoint(model, optimizer, config.CHECKPOINT_FILE.format(epoch + config.CURRENT_EPOCH))
 
-        if (epoch + 1) % 5 == 0 and config.SAVE_MODEL:
-            img0 = cv_imread(config.EXAMPLE)
-            detector = Detector(weights=config.CHECKPOINT_FILE,
-                                conf_thres=0.75,
+        if (epoch + 1) % 1 == 0 and config.SAVE_MODEL:
+            img0 = cv_imread(random.choice(config.EXAMPLE))
+            detector = Detector(weights=config.CHECKPOINT_FILE.format(epoch + config.CURRENT_EPOCH),
+                                conf_thres=0.8,
                                 iou_thres=0.2,
                                 view_time=True,
                                 target='*')
             img0 = detector.detection_image(img0)
-            writer.add_image("results", cv2.cvtColor(img0.transpose(2, 0, 1), cv2.COLOR_BGR2RGB), epoch)
+            writer.add_image("results", cv2.cvtColor(img0, cv2.COLOR_BGR2RGB).transpose(2, 0, 1), epoch)
 
         model.train()
 

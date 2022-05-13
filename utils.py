@@ -385,7 +385,7 @@ def test_iter(loader, model, loss_fn, scaled_anchors, writer, epoch):
                                     'noobj_acc_test': (correct_noobj / (tot_noobj + 1e-16)) * 100,
                                     'obj_acc_test': (correct_obj / (tot_obj + 1e-16)) * 100,
                                     }, epoch)
-    if (epoch + 1) % 10 == 0:
+    if (epoch + 1) % 1 == 0:
         all_pred_boxes, all_true_boxes = get_evaluation_bboxes(loader, model, config.NMS_IOU_THRESH, config.ANCHORS,
                                                                config.CONF_THRESHOLD)
         mapval = mean_average_precision(

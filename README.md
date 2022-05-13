@@ -69,3 +69,40 @@ Or activate your camera for detection.
 python main.py --weights pretrained/yolov3.pth.tar --camera True
 ```
 
+### Results
+
+#### PASCAL VOC metrics (mAP at .5 IOU)
+
+| Class         | mAP    |
+| ------------- | ------ |
+| aeroplane     | 46.875 |
+| bicycle       | 54.578 |
+| bird          | 30.290 |
+| boat          | 28.945 |
+| bottle        | 10.290 |
+| bus           | 52.285 |
+| car           | 59.773 |
+| cat           | 46.001 |
+| chair         | 18.014 |
+| cow           | 29.829 |
+| diningtable   | 35.642 |
+| dog           | 36.854 |
+| horse         | 46.345 |
+| motorbike     | 51.602 |
+| person        | 54.451 |
+| pottedplant   | 9.804  |
+| sheep         | 28.501 |
+| sofa          | 32.491 |
+| train         | 51.732 |
+| tvmonitor     | 40.404 |
+| **TOTAL mAP** | 38.235 |
+
+#### Example Outputs
+
+<details open>
+<summary>Transformer</summary>
+    <img src="random/transformer.gif" style="zoom:100%; center;" />
+
+<details open>
+<summary>CR7 Celebration</summary>
+    <img src="random/ronaldo.gif" style="zoom:100%; center;" />

@@ -114,7 +114,7 @@ def cv_imread(file_path):
     return cv_img
 
 
-def letterbox(im, new_shape=(config.IMAGE_SIZE, config.IMAGE_SIZE), color=(114, 114, 114), auto=False,
+def letterbox(im, new_shape=(config.IMAGE_SIZE, config.IMAGE_SIZE), color=(0, 0, 0), auto=False,
               scaleFill=False, scaleup=True, stride=32):
     # Resize and pad image while meeting stride-multiple constraints
     shape = im.shape[:2]  # current shape [height, width]

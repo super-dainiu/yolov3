@@ -24,8 +24,8 @@ class ResidualBlock(nn.Module):
         for repeat in range(num_repeats):
             self.layers += [
                 nn.Sequential(
-                    CNNBlock(channels, channels//2, kernel_size=1),
-                    CNNBlock(channels//2, channels, kernel_size=3, padding=1)
+                    CNNBlock(channels, channels // 2, kernel_size=1),
+                    CNNBlock(channels // 2, channels, kernel_size=3, padding=1)
                 )
             ]
 
@@ -62,9 +62,9 @@ class YOLOv3(nn.Module):
         self.num_classes = num_classes
         self.in_channels = in_channels
         self.darknet, out_channels = self._create_darknet()
-        self.predictor_1 = self._create_predictor(out_channels)
-        self.predictor_2 = self._create_predictor(out_channels // 2)
-        self.predictor_3 = self._create_predictor(out_channels // 4)
+        self.layers_1, self.predictor_1 = self._create_predictor(out_channels)
+        self.layers_2, self.predictor_2 = self._create_predictor(out_channels // 2)
+        self.layers_3, self.predictor_3 = self._create_predictor(out_channels // 4)
         self.upsampler_1 = nn.Upsample(scale_factor=2)
         self.linear_1 = CNNBlock(out_channels // 2 * 3, out_channels // 2, kernel_size=1)
         self.upsampler_2 = nn.Upsample(scale_factor=2)
@@ -80,14 +80,17 @@ class YOLOv3(nn.Module):
                 if layer.num_repeats == 8:
                     route_connections.append(x)
 
+        x = self.layers_1(x)
         outputs.append(self.predictor_1(x))
 
         x = self.upsampler_1(x)
         x = self.linear_1(torch.cat([x, route_connections.pop()], dim=1))
+        x = self.layers_2(x)
         outputs.append(self.predictor_2(x))
 
         x = self.upsampler_2(x)
         x = self.linear_2(torch.cat([x, route_connections.pop()], dim=1))
+        x = self.layers_3(x)
         outputs.append(self.predictor_3(x))
         return outputs
 
@@ -111,9 +114,8 @@ class YOLOv3(nn.Module):
             CNNBlock(in_channels, in_channels // 2, kernel_size=1),
             CNNBlock(in_channels // 2, in_channels, kernel_size=3, padding=1),
             CNNBlock(in_channels, in_channels // 2, kernel_size=1),
-            CNNBlock(in_channels // 2, in_channels, kernel_size=3, padding=1),
-            ScalePrediction(in_channels, num_classes=self.num_classes)
-        )
+            CNNBlock(in_channels // 2, in_channels, kernel_size=3, padding=1)
+        ), ScalePrediction(in_channels, num_classes=self.num_classes)
 
 
 if __name__ == "__main__":
@@ -122,7 +124,7 @@ if __name__ == "__main__":
     model = YOLOv3(num_classes=num_classes)
     x = torch.randn((2, 3, IMAGE_SIZE, IMAGE_SIZE))
     out = model(x)
-    assert out[0].shape == (2, 3, IMAGE_SIZE//32, IMAGE_SIZE//32, num_classes + 5)
-    assert out[1].shape == (2, 3, IMAGE_SIZE//16, IMAGE_SIZE//16, num_classes + 5)
-    assert out[2].shape == (2, 3, IMAGE_SIZE//8, IMAGE_SIZE//8, num_classes + 5)
+    assert out[0].shape == (2, 3, IMAGE_SIZE // 32, IMAGE_SIZE // 32, num_classes + 5)
+    assert out[1].shape == (2, 3, IMAGE_SIZE // 16, IMAGE_SIZE // 16, num_classes + 5)
+    assert out[2].shape == (2, 3, IMAGE_SIZE // 8, IMAGE_SIZE // 8, num_classes + 5)
     print("Successfully build model YOLOv3-VOC")
