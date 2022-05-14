@@ -2,7 +2,6 @@ import config
 import torch
 import torch.optim as optim
 from torch.utils.tensorboard import SummaryWriter
-import cv2
 import random
 
 from model import YOLOv3
