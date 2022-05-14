@@ -128,5 +128,5 @@ python main.py --weights pretrained/yolov3.pth.tar --camera True
 
 <details open>
 <summary>Car</summary>
-    <img src="random/car_3.png" style="zoom:100%;" align="center" />
+    <img src="random/car-3.png" style="zoom:100%;" align="center" />
 </details>
