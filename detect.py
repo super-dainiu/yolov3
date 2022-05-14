@@ -21,7 +21,7 @@ colors = Colors()
 
 class Detector(object):
     def __init__(self,
-                 weights='pretrained/stage_2.pth.tar',  # model.pt path(s)
+                 weights='pretrained/yolov3-250.pth.tar',  # model.pt path(s)
                  imgsz=416,  # inference size (pixels)
                  conf_thres=0.75,  # confidence threshold
                  iou_thres=0.6,  # NMS IOU threshold
@@ -114,7 +114,7 @@ def imread(file_path):
 if __name__ == "__main__":
     img_dir = 'samples/football.jpg'
     my_img = imread(img_dir)
-    detector = Detector(weights='pretrained/stage_1.pth.tar',
+    detector = Detector(weights='pretrained/yolov3-250.pth.tar',
                         conf_thres=0.8,
                         iou_thres=0.2,
                         view_time=True,

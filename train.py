@@ -33,7 +33,7 @@ def main():
     loss_fn = YOLOLoss()
     scaler = torch.cuda.amp.GradScaler()
     writer = SummaryWriter(config.WRITER)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer,T_max=config.NUM_EPOCHS // 2)
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=config.NUM_EPOCHS // 5)
 
     train_dataset, test_dataset, train_loader, test_loader = get_loaders(
         train_csv_path=config.DATASET+config.TRAIN_FILE, test_csv_path=config.DATASET+config.TEST_FILE
@@ -54,10 +54,8 @@ def main():
         test_iter(test_loader, model, loss_fn, scaled_anchors, writer, epoch + config.CURRENT_EPOCH)
         scheduler.step()
 
-        if config.SAVE_MODEL:
+        if (epoch + 1) % 10 == 0 and config.SAVE_MODEL:
             save_checkpoint(model, optimizer, config.CHECKPOINT_FILE.format(epoch + config.CURRENT_EPOCH))
-
-        if (epoch + 1) % 1 == 0 and config.SAVE_MODEL:
             img0 = imread(random.choice(config.EXAMPLE))
             detector = Detector(weights=config.CHECKPOINT_FILE.format(epoch + config.CURRENT_EPOCH),
                                 conf_thres=0.8,
@@ -65,7 +63,7 @@ def main():
                                 view_time=True,
                                 target='*')
             img0 = detector.detection_image(img0)
-            writer.add_image("results", img0.transpose(2, 0, 1), epoch)
+            writer.add_image("results", img0.transpose(2, 0, 1), epoch + config.CURRENT_EPOCH)
 
         model.train()
 

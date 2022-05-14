@@ -79,27 +79,27 @@ python main.py --weights pretrained/yolov3.pth.tar --camera True
 
 | Class         | mAP    |
 | ------------- | ------ |
-| aeroplane     | 46.875 |
-| bicycle       | 54.578 |
-| bird          | 30.290 |
-| boat          | 28.945 |
-| bottle        | 10.290 |
-| bus           | 52.285 |
-| car           | 59.773 |
-| cat           | 46.001 |
-| chair         | 18.014 |
-| cow           | 29.829 |
-| diningtable   | 35.642 |
-| dog           | 36.854 |
-| horse         | 46.345 |
-| motorbike     | 51.602 |
-| person        | 54.451 |
-| pottedplant   | 9.804  |
-| sheep         | 28.501 |
-| sofa          | 32.491 |
-| train         | 51.732 |
-| tvmonitor     | 40.404 |
-| **TOTAL mAP** | 38.235 |
+| aeroplane     | 58.018 |
+| bicycle       | 60.933 |
+| bird          | 34.835 |
+| boat          | 32.412 |
+| bottle        | 17.423 |
+| bus           | 63.038 |
+| car           | 69.853 |
+| cat           | 57.547 |
+| chair         | 29.547 |
+| cow           | 44.667 |
+| diningtable   | 48.446 |
+| dog           | 48.934 |
+| horse         | 59.299 |
+| motorbike     | 63.281 |
+| person        | 52.751 |
+| pottedplant   | 19.121 |
+| sheep         | 48.951 |
+| sofa          | 51.492 |
+| train         | 56.918 |
+| tvmonitor     | 55.288 |
+| **TOTAL mAP** | 48.638 |
 
 #### Example Outputs 💩
 
