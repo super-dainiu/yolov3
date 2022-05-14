@@ -2,7 +2,7 @@
 
 This is the mid-term project for DATA130051 Computer Vision. 🐮🐮🐮
 
-Full report <[here](https://github.com/super-dainiu/cv-midterm)>
+Full report <[here](https://github.com/super-dainiu/cv-midterm)>.
 
 <img src="random/yolov3.JPG" align="center"/>
 
